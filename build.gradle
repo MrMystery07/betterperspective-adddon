@@ -1,0 +1,308 @@
+import org.gradle.internal.os.OperatingSystem
+
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.Paths
+import java.nio.file.StandardCopyOption
+
+group 'net.mysterymod'
+version '1.0.0'
+
+subprojects {
+  buildscript {
+    repositories {
+      mavenCentral()
+    }
+  }
+
+  apply plugin: 'java'
+
+  repositories {
+    mavenCentral()
+    maven {
+      name = "xmod-repository"
+      url = uri("https://nexus.mysterymod.dev/repository/maven-releases/")
+      credentials {
+        username = project.findProperty("mysterymod.nexus.user") ?: System.getenv("NEXUS_USER")
+        password = project.findProperty("mysterymod.nexus.password") ?: System.getenv("NEXUS_PASSWORD")
+      }
+    }
+  }
+
+  dependencies {
+    compile fileTree(dir: "${rootDir}/libs", include: ['*.jar'])
+    compileOnly 'org.projectlombok:lombok:1.18.12'
+    annotationProcessor 'org.projectlombok:lombok:1.18.12'
+  }
+
+  compileJava {
+    sourceCompatibility = '1.8'
+    targetCompatibility = '1.8'
+    options.encoding = 'UTF-8'
+  }
+
+  task copyAddon(type: Copy) {
+    from jar
+    into "${rootDir}/run/${project.name}/MysteryMod/addons/${project.name}"
+  }
+
+  project.ext {
+    // CHANGE THIS
+    archivesName = "mod-addon"
+    modVersion = "0.1.4+build.908"
+    jarIncludes = ["mystery-mod-addon"]
+    // CHANGE THIS
+    mixinFile = "mixins.addon"
+    annotationProcessorsLegacy = [
+      "org.ow2.asm:asm-debug-all:5.2",
+      "com.google.guava:guava:21.0",
+      "org.apache.logging.log4j:log4j-core:2.0-beta9",
+      "commons-io:commons-io:2.4",
+      "com.google.code.gson:gson:2.2.4",
+      "org.spongepowered:mixin:0.7.11-SNAPSHOT"
+    ]
+    annotationProcessorsNew = [
+      "com.google.guava:guava:21.0",
+      "org.apache.logging.log4j:log4j-core:2.0-beta9",
+      "org.ow2.asm:asm-tree:6.2",
+      'org.ow2.asm:asm-commons:6.2',
+      'org.ow2.asm:asm-util:6.2',
+      "com.google.code.gson:gson:2.2.4",
+      "org.spongepowered:mixin:0.8.1-mysterymod"
+    ]
+  }
+}
+
+wrapper {
+  gradleVersion = '4.9'
+  distributionType = Wrapper.DistributionType.ALL
+}
+
+def SERVER = "https://dl.mysterymod.dev"
+def versions = ["1.8.9", "1.12.2", "1.16.5"]
+
+task publish {
+  group = 'mysterymod'
+
+  versions.each { mcVersion ->
+    println("Creating dev version for: " + mcVersion)
+    dependsOn ':jars:' + mcVersion + ':devBuild'
+    copy(mcVersion, true, version, "addon", rootDir)
+
+  }
+
+  versions.each {mcVersion ->
+    println("Creating prod version for: "  + mcVersion)
+    dependsOn ':jars:' + mcVersion + ':build'
+    copy(mcVersion, false, version, "addon", rootDir)
+  }
+
+}
+task setup {
+  dependsOn ':jars:1.8.9:setupDecompWorkspace', ':jars:1.12.2:setupDecompWorkspace'
+
+  group = 'mysterymod'
+  description 'Sets up the mixin workspace.'
+
+  doLast {
+    def windows = OperatingSystem.current().isWindows()
+    def macos = OperatingSystem.current().isMacOsX();
+
+    // MCP libraries
+    ["1.8.9", "1.12.2"].each { version ->
+      def mcpDir = file("$rootDir/mcp/${version}")
+
+      if (!mcpDir.exists()) {
+        mcpDir.mkdirs()
+
+        def libZipFile = file("$rootDir/mcp/${version}/libs.zip")
+
+        download("$SERVER/mcp/libs_${version}.zip", { inputStream ->
+          libZipFile.withOutputStream {
+            it << inputStream
+          }
+        }, project)
+
+        println "Unzip libs for ${version}"
+
+        copy {
+          from zipTree(libZipFile)
+          into mcpDir
+        }
+
+        libZipFile.delete()
+      }
+    }
+
+    def mcpDir = file("$rootDir/mcp/1.16.5")
+
+    if (!mcpDir.exists()) {
+      mcpDir.mkdirs()
+
+      def newLibUrl = "$SERVER/mcp/libs_1.16.5_" + (windows ? "windows" : (macos ? "macos" : "linux")) + ".zip";
+      def libZipFile = file("$rootDir/mcp/1.16.5/libs.zip")
+
+      download(newLibUrl, { inputStream ->
+        libZipFile.withOutputStream {
+          it << inputStream
+        }
+      }, project)
+
+      println "Unzip libs for 1.16.5"
+
+      copy {
+        from zipTree(libZipFile)
+        into mcpDir
+      }
+
+      copy {
+        from fileTree("$rootDir/mcp/1.16.5/1.16.5")
+        into mcpDir
+      }
+
+      libZipFile.delete()
+    }
+
+    // Load launchwrapper for 1.16.5
+
+    download("$SERVER/libraries/mcp/1.16.5/launchwrapper-1.15.jar", {
+      inputStream ->
+        file("$rootDir/mcp/1.16.5/launchwrapper-1.15.jar").withOutputStream {
+          it << inputStream
+        }
+    }, project)
+
+    // Load natives
+    if (windows) {
+      def NATIVES = [
+        "avutil-ttv-51.dll",
+        "jinput-dx8.dll",
+        "jinput-dx8_64.dll",
+        "jinput-raw.dll",
+        "jinput-raw_64.dll",
+        "jinput-wintab.dll",
+        "libmfxsw64.dll",
+        "libmp3lame-ttv.dll",
+        "lwjgl.dll",
+        "lwjgl64.dll",
+        "OpenAL32.dll",
+        "OpenAL64.dll",
+        "swresample-ttv-0.dll",
+        "twitchsdk.dll"
+      ]
+
+      def NATIVES_VERSIONS = ["1.8.9", "1.12.2"]
+
+      NATIVES_VERSIONS.each { version ->
+        file("$rootDir/run/$version/versions/$version/$version-natives").mkdirs()
+
+        NATIVES.each { nativeFile ->
+          download("$SERVER/natives/windows/$version/$nativeFile", { inputStream ->
+            println "Loading $rootDir/run/$version/versions/$version/$version-natives/$nativeFile"
+            file("$rootDir/run/$version/versions/$version/$version-natives/$nativeFile").withOutputStream {
+              it << inputStream
+            }
+          }, project)
+        }
+      }
+
+    } else if (macos) {
+      // Because this is designed to work only for windows and macos
+
+      def NATIVES_1_8_9 = [
+        "libjinput-osx.jnilib",
+        "liblwjgl.dylib",
+        "libtwitchsdk.dylib",
+        "openal.dylib"
+      ]
+
+      file("$rootDir/run/1.8.9/versions/1.8.9/1.8.9-natives").mkdirs()
+
+      NATIVES_1_8_9.each { nativeFile ->
+        download("$SERVER/natives/macos/1.8.9/$nativeFile", { inputStream ->
+          println "Loading $nativeFile"
+          file("$rootDir/run/1.8.9/versions/1.8.9/1.8.9-natives/$nativeFile")
+            .withOutputStream {
+              it << inputStream
+            }
+        }, project)
+      }
+
+      def NATIVES_1_12_2 = [
+        "libjcocoa.dylib",
+        "libjinput-osx.jnilib",
+        "liblwjgl.dylib",
+        "openal.dylib"
+      ]
+
+      file("$rootDir/run/1.12.2/versions/1.12.2/1.12.2-natives").mkdirs()
+
+      NATIVES_1_12_2.each { nativeFile ->
+        download("$SERVER/natives/macos/1.12.2/$nativeFile", { inputStream ->
+          println "Loading $nativeFile"
+          file("$rootDir/run/1.12.2/versions/1.12.2/1.12.2-natives/$nativeFile")
+            .withOutputStream {
+              it << inputStream
+            }
+        }, project)
+      }
+    } else {
+      // It's probably linux
+    }
+
+    // Load assets
+    versions.each { version ->
+      file("$rootDir/run/$version").mkdirs()
+      def zipFile = file("$rootDir/run/$version/assets.zip")
+      def assetsDir = file("$rootDir/run/$version/assets")
+
+      if (!assetsDir.exists()) {
+        println "Loading assets for $version"
+
+        download("$SERVER/assets/assets-${version.replace(".", "_")}.zip", { inputStream ->
+          zipFile.withOutputStream {
+            it << inputStream
+          }
+        }, project)
+
+        println "Unzip assets for $version"
+
+        assetsDir.mkdirs()
+
+        copy {
+          from zipTree(zipFile)
+          into assetsDir
+        }
+
+        zipFile.delete()
+      }
+    }
+  }
+}
+
+static def download(String url, def closure, Project project) {
+  HttpURLConnection connection = new URL(url).openConnection() as HttpURLConnection
+  connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.190 Safari/537.36")
+  String username = project.findProperty("mysterymod.downloads.user")
+  String password = project.findProperty("mysterymod.downloads.password")
+  connection.setRequestProperty("Authorization", "Basic " + new String(Base64.encoder.encode((username + ":" + password).getBytes(StandardCharsets.UTF_8))))
+
+  closure(connection.getInputStream())
+}
+
+static def copy(String mcVersion, boolean dev, String version, String name, File rootDir) {
+
+  java.nio.file.Path versionPath = Paths.get("$rootDir/versions/" + mcVersion + "/build/libs/" + mcVersion + "-" + version + ".jar")
+
+  java.nio.file.Path exportPath = Paths.get("$rootDir/build/" + mcVersion + "/" + name + "-" + (dev ? "development" : "production") + "-" + version + ".jar")
+
+  if (Files.notExists(versionPath)) {
+    println("Cannot find the addon.")
+    return;
+  }
+  if (Files.notExists(exportPath.getParent())) {
+    Files.createDirectories(exportPath.getParent());
+  }
+
+  Files.copy(versionPath, exportPath, StandardCopyOption.REPLACE_EXISTING);
+}

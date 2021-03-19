@@ -1,0 +1,34 @@
+jar {
+  project.ext.jarIncludes.each { name ->
+    from {
+      project(":$name").sourceSets.main.output.classesDirs.collect { it }
+    }
+    from {
+      project(":$name").sourceSets.main.output.resourcesDir
+    }
+  }
+}
+
+jar.baseName = "${project.ext.archivesName}-${project.name}"
+
+def mainSourceSet = project(":versions:${project.ext.mcVersion}").sourceSets.main;
+
+sourceSets {
+  main {
+    java.srcDirs mainSourceSet.java.srcDirs
+    resources.srcDirs mainSourceSet.resources.srcDirs
+    ext.refMap = "${project.ext.mixinFile}.refmap.json"
+  }
+}
+
+task devBuild(type: Jar) {
+  baseName = "${project.ext.archivesName}-${project.name}-dev"
+
+  exclude 'mixins.*.refmap.json'
+  exclude 'META-INF/*.RSA'
+  exclude 'META-INF/*.SF'
+
+  with jar
+
+  duplicatesStrategy DuplicatesStrategy.EXCLUDE
+}

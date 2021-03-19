@@ -1,0 +1,15 @@
+rootProject.name = 'mystery-mod-mixin-workspace'
+
+include 'mystery-mod-addon'
+
+include 'versions:1.8.9'
+include 'versions:1.12.2'
+include 'versions:1.16.5'
+
+findProject(':versions:1.8.9')?.name = '1.8.9'
+findProject(':versions:1.12.2')?.name = '1.12.2'
+findProject(':versions:1.16.5')?.name = '1.16.5'
+
+include 'jars:1.8.9'
+include 'jars:1.12.2'
+include 'jars:1.16.5'

@@ -1,0 +1,10 @@
+jar {
+  project.ext.jarIncludes.each { name ->
+    from {
+      project(":$name").sourceSets.main.output.classesDirs.collect { it }
+    }
+    from {
+      project(":$name").sourceSets.main.output.resourcesDir
+    }
+  }
+}

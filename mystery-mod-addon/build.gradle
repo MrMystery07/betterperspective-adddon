@@ -1,0 +1,7 @@
+group 'net.mysterymod'
+version '1.0.0'
+
+dependencies {
+  compile "x-mod-core:mysterymod:${project.ext.modVersion}"
+  compileOnly group: 'commons-io', name: 'commons-io', version: '2.5'
+}

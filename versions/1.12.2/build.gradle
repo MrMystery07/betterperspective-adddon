@@ -1,0 +1,43 @@
+group 'net.mysterymod'
+version '1.0.0'
+
+apply from: '../common.gradle'
+
+repositories {
+  maven {
+    name = "forge"
+    url = "http://files.minecraftforge.net/maven"
+  }
+
+  maven {
+    name = 'sponge'
+    url = 'https://repo.spongepowered.org/maven'
+  }
+}
+
+dependencies {
+  compile project(":mystery-mod-addon")
+
+  implementation fileTree(dir: "${rootDir}/mcp/1.12.2", includes: ["*.jar"])
+
+  compile("x-mod-core:1.12.2:${project.ext.modVersion}") {
+    exclude module: 'mysterymod'
+  }
+
+  implementation('org.spongepowered:mixin:0.7.11-SNAPSHOT') {
+    exclude module: 'launchwrapper'
+    exclude module: 'guava'
+    exclude module: 'gson'
+    exclude module: 'commons-io'
+    exclude module: 'log4j-core'
+  }
+
+  project.ext.annotationProcessorsLegacy.each {
+    annotationProcessor it
+  }
+}
+
+tasks.withType(JavaCompile) {
+  options.compilerArgs += ["-AreobfSrgFile=${rootDir}/srg/1.12.2/mcp-srg.srg",
+                           "-AreobfNotchSrgFile=${rootDir}/srg/1.12.2/notch-srg.srg"]
+}

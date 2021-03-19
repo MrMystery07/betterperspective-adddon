@@ -1,0 +1,33 @@
+group 'net.mysterymod'
+version '1.0.0'
+
+apply from: '../common.gradle'
+
+
+dependencies {
+  compile project(":mystery-mod-addon")
+
+  implementation fileTree(dir: "${rootDir}/mcp/1.16.5", includes: ["*.jar"])
+
+  compile("x-mod-core:newest:${project.ext.modVersion}") {
+    exclude module: 'mysterymod'
+    exclude group: 'net.minecraftforge'
+  }
+
+  implementation('org.spongepowered:mixin:0.8.1-mysterymod') {
+    exclude module: 'launchwrapper'
+    exclude module: 'guava'
+    exclude module: 'gson'
+    exclude module: 'commons-io'
+    exclude module: 'log4j-core'
+  }
+
+  compile "org.ow2.asm:asm-tree:6.2"
+  compile "org.ow2.asm:asm-commons:6.2"
+  compile "org.ow2.asm:asm-util:6.2"
+}
+
+tasks.withType(JavaCompile) {
+  options.compilerArgs += ["-AreobfSrgFile=${rootDir}/srg/1.16.5/mcp-srg.srg",
+                           "-AreobfNotchSrgFile=${rootDir}/srg/1.16.5/notch-srg.srg"]
+}

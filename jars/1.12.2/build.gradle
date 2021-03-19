@@ -1,0 +1,69 @@
+ext.mcVersion = "1.12.2"
+
+apply plugin: 'java'
+
+task wrapper(type: Wrapper) {
+  gradleVersion = '4.4.1'
+}
+
+buildscript {
+  repositories {
+    maven {
+      name = 'sponge'
+      url = 'https://repo.spongepowered.org/maven'
+    }
+    jcenter()
+    maven {
+      name = "forge"
+      url = "http://files.minecraftforge.net/maven"
+    }
+    maven { url = 'https://jitpack.io' }
+  }
+
+  dependencies {
+    classpath 'net.minecraftforge.gradle:ForgeGradle:2.3-SNAPSHOT'
+    classpath 'org.spongepowered:mixingradle:0.6-SNAPSHOT'
+  }
+}
+
+repositories {
+  maven {
+    name = "forge"
+    url = "http://files.minecraftforge.net/maven"
+  }
+  maven {
+    name = 'sponge'
+    url = 'https://repo.spongepowered.org/maven'
+  }
+  maven { url = 'https://jitpack.io' }
+}
+
+apply plugin: 'net.minecraftforge.gradle.forge'
+apply plugin: 'org.spongepowered.mixin'
+apply from: '../common.gradle'
+
+dependencies {
+  compile project(":versions:${project.ext.mcVersion}")
+
+  project.ext.annotationProcessorsLegacy.each {
+    annotationProcessor it
+  }
+}
+
+tasks.withType(JavaCompile) {
+  options.compilerArgs += ["-AreobfSrgFile=${rootDir}/srg/${project.ext.mcVersion}/mcp-srg.srg",
+                           "-AreobfNotchSrgFile=${rootDir}/srg/${project.ext.mcVersion}/notch-srg.srg"]
+}
+
+mixin {
+  defaultObfuscationEnv notch
+}
+
+minecraft {
+  version = "1.12.2-14.23.5.2838"
+  runDir = "mc_out"
+  mappings = "snapshot_20171003"
+  makeObfSourceJar = false
+}
+
+reobf.jar.mappingType = 'NOTCH'
