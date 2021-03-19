@@ -29,6 +29,11 @@ public class BetterPerspectiveProvider implements AddonSettingsProvider {
         },
         config.isEnabled()
       ));
+    list.add(new KeybindComponent("Hotkey", null,
+      config.getHotkey(), keyCode -> {
+      config.setHotkey(keyCode);
+      config.saveConfig();
+    }));
     list.add(
       ToggleComponent.create(
         "Hotkey halten?",
@@ -40,11 +45,6 @@ public class BetterPerspectiveProvider implements AddonSettingsProvider {
         },
         config.isHold()
       ));
-    list.add(new KeybindComponent("Hotkey", null,
-      config.getHotkey(), keyCode -> {
-      config.setHotkey(keyCode);
-      config.saveConfig();
-    }));
   }
 }
 
